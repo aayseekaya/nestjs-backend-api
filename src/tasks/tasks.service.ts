@@ -49,7 +49,7 @@ export class TasksService {
       throw new NotFoundException(`Görev bulunamadı ID: ${id}`);
     }
 
-    if (updateTaskDto.progress !== undefined) {
+    if (updateTaskDto.progress !== undefined || updateTaskDto.weight !== undefined) {
       await this.updateProjectProgress(task.projectId.toString());
     }
 
@@ -77,15 +77,13 @@ export class TasksService {
 
     const totalWeight = tasks.reduce((sum, task) => sum + task.weight, 0);
     const weightedProgress = tasks.reduce(
-      (sum, task) => sum + (task.progress * task.weight) / 100,
+      (sum, task) => sum + (task.progress * task.weight) / totalWeight,
       0
     );
 
-    const projectProgress = totalWeight > 0 ? (weightedProgress / totalWeight) * 100 : 0;
-
     await this.projectModel.findByIdAndUpdate(
       projectId,
-      { progress: projectProgress },
+      { progress: Math.round(weightedProgress * 100) / 100 },
       { new: true }
     );
   }

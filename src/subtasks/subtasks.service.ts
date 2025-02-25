@@ -5,12 +5,14 @@ import { SubTask } from './schemas/subtask.schema';
 import { Task } from '../tasks/schemas/task.schema';
 import { CreateSubTaskDto } from './dto/create-subtask.dto';
 import { UpdateSubTaskDto } from './dto/update-subtask.dto';
+import { Project } from '../projects/schemas/project.schema';
 
 @Injectable()
 export class SubTasksService {
   constructor(
     @InjectModel(SubTask.name) private subTaskModel: Model<SubTask>,
     @InjectModel(Task.name) private taskModel: Model<Task>,
+    @InjectModel(Project.name) private projectModel: Model<Project>,
   ) {}
 
   async create(createSubTaskDto: CreateSubTaskDto): Promise<SubTask> {
@@ -51,6 +53,7 @@ export class SubTasksService {
 
     if (updateSubTaskDto.progress !== undefined) {
       await this.updateTaskProgress(subTask.taskId.toString());
+      await this.updateProjectProgress(subTask.taskId.toString());
     }
 
     return subTask;
@@ -85,6 +88,26 @@ export class SubTasksService {
     await this.taskModel.findByIdAndUpdate(
       taskId,
       { progress: taskProgress },
+      { new: true }
+    );
+  }
+  private async updateProjectProgress(taskId: string): Promise<void> {
+    const task = await this.taskModel.findById(taskId).exec();
+    if (!task) return;
+
+    const projectId = task.projectId;
+    const tasks = await this.taskModel.find({ projectId }).exec();
+    if (tasks.length === 0) return;
+
+    const totalWeight = tasks.reduce((sum, task) => sum + task.weight, 0);
+    const weightedProgress = tasks.reduce(
+      (sum, task) => sum + (task.progress * task.weight) / totalWeight,
+      0
+    );
+
+    await this.projectModel.findByIdAndUpdate(
+      projectId,
+      { progress: Math.round(weightedProgress * 100) / 100 },
       { new: true }
     );
   }
